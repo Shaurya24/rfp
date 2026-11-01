@@ -5,15 +5,17 @@ import hashlib
 import json
 import os
 import re
+import sys
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from src import db, llm
-from src.document_tool import DocumentError, extract_pdf_text
-from src.orchestrator import run_evaluation, validate_inputs
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # make sibling package importable on Streamlit Cloud
+from rfp_core import db, llm
+from rfp_core.document_tool import DocumentError, extract_pdf_text
+from rfp_core.orchestrator import run_evaluation, validate_inputs
 
 ROOT = Path(__file__).parent
 SAMPLE_DIR = ROOT / "sample_rfps"
@@ -207,11 +209,16 @@ else:
         lb = pd.DataFrame(run["leaderboard"]).rename(columns={
             "rank": "Rank", "supplier_name": "Supplier", "absolute_score": "Absolute score (/100)",
             "ppi": "PPI", "submission_date": "Submission date", "experience_rating": "Experience rating"})
-        st.dataframe(lb, use_container_width=True, hide_index=True)
+        st.dataframe(
+            lb, use_container_width=True, hide_index=True,
+            column_config={
+                "Absolute score (/100)": st.column_config.ProgressColumn(
+                    "Absolute score (/100)", min_value=0, max_value=100, format="%.2f"),
+                "PPI": st.column_config.ProgressColumn("PPI", min_value=0, max_value=100, format="%.2f"),
+            })
         winner = run["leaderboard"][0]
         st.success(f"**{winner['supplier_name']}** ranks #1 with PPI {winner['ppi']:.2f} "
                    f"(absolute score {winner['absolute_score']:.2f}).")
-        st.bar_chart(lb.set_index("Supplier")[["Absolute score (/100)", "PPI"]])
         st.markdown("**Why this order?**  \nTie-break rule: " + run["tie_break_rule"])
         for line in run["tie_break_explanations"]:
             st.markdown(f"- {line}")
